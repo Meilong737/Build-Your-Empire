@@ -2,11 +2,13 @@ import pygame # load pygame keywords
 import sys # let python use file system
 import os # help python identify your OS
 import time
+import random
 import csv
 '''
 Variables
 '''
 ALPHA=(0, 0, 0)
+WALPHA=(254,254,254)
 BLUE  = (25, 25, 200)
 RED = (255, 0, 0)
 BLACK = (23, 23, 23)
@@ -18,8 +20,10 @@ GREEN_BROWN = (165,128,42,1)
 ORANGE= (156,45,0,4)
 LIGHT_GREEN = (42, 159,0,45)
 
-screenx=1850
-screeny=950
+#screenx=1850
+#screeny=950
+screeny=750
+screenx= 1400
 worldx=screenx*2
 worldy=screeny*2
 backwardx=100
@@ -45,6 +49,7 @@ class Background():
 
 
 class Player (pygame.sprite.Sprite):
+    max_wood=30
     def __init__ (self, x, y, imgfile="Elf1.png"):
         (sizex, sizey)=(45,45)
         pygame.sprite.Sprite.__init__(self)
@@ -61,35 +66,79 @@ class Player (pygame.sprite.Sprite):
         self.movex=0
         self.movey=0
         self.score=0
+        self.wood_carried=0
       
         
     def control(self,x,y):
         self.movex += x
         self.movey += y
         
-    def update(self,bg):
+    def update(self,bg,rlist):
         self.rect.x = self.rect.x + self.movex
         self.rect.y = self.rect.y + self.movey
         if self.rect.x -bg.x< backwardx:
 #            self.rect.x-=self.movex
             self.rect.x=screenx-backwardx+bg.x
             bg.x=-(worldx-screenx)
+            for r in rlist:
+                r.rect.x=r.x-(worldx-screenx)
         if self.rect.x-bg.x>worldx-backwardx:
 #            self.rect.x-=self.movex
             self.rect.x=backwardx
             bg.x=0
+            for r in rlist:
+                r.rect.x=r.x
+    
         if self.rect.y-bg.y>worldy-backwardy:
             #self.rect.y-=self.movey
             self.rect.y=backwardy
             bg.y=0
+            for r in rlist:
+                r.rect.y=r.y
         if self.rect.y-bg.y<backwardy:
             #self.rect.y-=self.movey
             self.rect.y=screeny-backwardy+bg.y
             bg.y=-(worldy-screeny)
-        
+            for r in rlist:
+                r.rect.y=r.y-(worldy-screeny)
+        collidelist=pygame.sprite.spritecollide(self,rlist,False)
+        for r in collidelist:
+            if r.rtype=="wood":
+                if self.wood_carried<Player.max_wood:
+                    self.wood_carried+=6
+                    r.disappear()
        
-      
+class Resource(pygame.sprite.Sprite):
+    def __init__ (self, x, y, rtype='wood'):
+        self.rtype=rtype
+        if rtype=="wood":
+            imgfile="6wood.png"
+            (sizex, sizey)=(15,15)
+            
+        elif rtype=="hut":
+            imgfile="hut.jpg"
+            (sizex,sizey)=(50,50)
      
+        pygame.sprite.Sprite.__init__(self)
+        img = pygame.image.load(os.path.join('images',imgfile)).convert()
+        img = pygame.transform.scale(img,(sizex, sizey))
+        img.convert_alpha()     # optimise alpha
+        if rtype=="wood":
+            img.set_colorkey(ALPHA) # set alpha
+        elif rtype=="hut":
+            img.set_colorkey(WALPHA)
+        self.image = img
+        self.x=x
+        self.y=y
+        self.rect  = self.image.get_rect()
+        self.rect.x=x
+        self.rect.y=y
+        self.sizey=sizey
+        self.sizex=sizex
+        
+    def disappear(self):
+        self.rect.x=-100
+        self.rect.y=-100
 
 class platform_game():
     
@@ -102,12 +151,20 @@ class platform_game():
     def setup(self,lvl=1):
         self.lvl=1
         if lvl==1:
-            px=150
-            py=int(5*ty)
+            wood_piles=200
+            px=random.randint(0,worldx)
+            py=random.randint(0,worldy)
         self.background=Background(0,0,"Background1.jpg")    
         self.player=Player(px, py)
         self.player_list = pygame.sprite.Group()
         self.player_list.add(self.player)
+        self.rlist=pygame.sprite.Group()
+        for i in range(wood_piles):
+            wx=random.randint(0,worldx)
+            wy=random.randint(0,worldy)
+            wood=Resource(wx,wy)
+            self.rlist.add(wood)
+        
         
 
     
@@ -134,6 +191,11 @@ class platform_game():
                         self.player.control(0,steps)
                     if event.key == ord('q'):
                         main=False
+                    if event.key == ord('b'):
+                        if self.player.wood_carried>=20:
+                            hut=Resource(self.player.rect.x,self.player.rect.y,rtype="hut")
+                            self.rlist.add(hut)
+                            self.player.wood_carried-=20
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT or event.key == ord('a'):
                         self.player.control(steps,0)
@@ -149,28 +211,43 @@ class platform_game():
                 scrollx=self.player.rect.x-forwardx
                 self.player.rect.x=forwardx
                 self.background.x-=scrollx
+                for r in self.rlist:
+                    r.rect.x-=scrollx
+                    
             if self.player.rect.x<=backwardx:
                 #scroll left
                 scrollx=self.player.rect.x-backwardx
                 self.player.rect.x=backwardx
                 self.background.x-=scrollx
+                for r in self.rlist:
+                    r.rect.x-=scrollx
             if self.player.rect.y>=forwardy:
                 #scroll down
                 scrolly=self.player.rect.y-forwardy
                 self.player.rect.y=forwardy
                 self.background.y-=scrolly
+                for r in self.rlist:
+                    r.rect.y-=scrolly
             if self.player.rect.y<=backwardy:
                 #scroll up
                 scrolly=self.player.rect.y-backwardy
                 self.player.rect.y=backwardy
                 self.background.y-=scrolly
+                for r in self.rlist:
+                    r.rect.y-=scrolly
 #            print(self.background.x,self.background.y)
             self.world.blit(self.background.img,[self.background.x,self.background.y])
-            self.player_list.update(self.background)
+            self.player_list.update(self.background,self.rlist)
             self.player_list.draw(self.world) # draw player
-#            largeFont=pygame.font.SysFont("arial",25)
-#            text=largeFont.render("Score: "+str(int(self.player.score)),1,WHITE)
-#            self.world.blit(text,(10,10))
+            self.rlist.draw(self.world)
+            largeFont=pygame.font.SysFont("arial",15)
+            icons=pygame.sprite.Group()
+            if self.player.wood_carried>0:
+                wood_icon=Resource(5,5)
+                icons.add(wood_icon)
+                icons.draw(self.world)
+                text=largeFont.render( str(int(self.player.wood_carried)),1,BLACK)
+                self.world.blit(text,(18,5))
             self.clock.tick(fps)
             pygame.display.flip()
             self.player.score-=1/fps
