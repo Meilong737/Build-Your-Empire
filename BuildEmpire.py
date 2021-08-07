@@ -22,6 +22,10 @@ screenx=1850
 screeny=950
 worldx=screenx*2
 worldy=screeny*2
+backwardx=100
+forwardx=screenx-backwardx
+backwardy=backwardx
+forwardy=screeny-backwardy
 tx=64
 ty=64
 steps=10
@@ -31,9 +35,18 @@ ani   = 4   # animation cycles
 '''
 Objects
 '''
+class Background():
+    
+    def __init__(self,x,y,imgfile):
+        self.img=pygame.image.load(os.path.join('images',imgfile))
+        self.img = pygame.transform.scale(self.img,(worldx, worldy))
+        self.x=x
+        self.y=y
+
+
 class Player (pygame.sprite.Sprite):
     def __init__ (self, x, y, imgfile="Elf1.png"):
-        (sizex, sizey)=(35,35)
+        (sizex, sizey)=(45,45)
         pygame.sprite.Sprite.__init__(self)
         img = pygame.image.load(os.path.join('images',imgfile)).convert()
         img = pygame.transform.scale(img,(sizex, sizey))
@@ -54,40 +67,29 @@ class Player (pygame.sprite.Sprite):
         self.movex += x
         self.movey += y
         
-    def update(self):
+    def update(self,bg):
         self.rect.x = self.rect.x + self.movex
         self.rect.y = self.rect.y + self.movey
-        if self.rect.x < 0:
-            self.rect.x =0
+        if self.rect.x -bg.x< backwardx:
+#            self.rect.x-=self.movex
+            self.rect.x=screenx-backwardx+bg.x
+            bg.x=-(worldx-screenx)
+        if self.rect.x-bg.x>worldx-backwardx:
+#            self.rect.x-=self.movex
+            self.rect.x=backwardx
+            bg.x=0
+        if self.rect.y-bg.y>worldy-backwardy:
+            #self.rect.y-=self.movey
+            self.rect.y=backwardy
+            bg.y=0
+        if self.rect.y-bg.y<backwardy:
+            #self.rect.y-=self.movey
+            self.rect.y=screeny-backwardy+bg.y
+            bg.y=-(worldy-screeny)
         
        
       
-            
-class Wall(pygame.sprite.Sprite):
-    
-    def __init__(self,x,y,img):
-        pygame.sprite.Sprite.__init__(self)
-        self.image = img
-        self.rect  = self.image.get_rect()
-        self.x=x
-        self.y=y
-        self.visible=True
-        self.show()
-        
-    def show(self):
-        if self.visible:
-            self.rect.x=self.x
-            self.rect.y=self.y
-        else:
-            self.rect.x=-100
-            self.rect.y=-100
-                    
-    
-        
-        
-    '''
-    Setup
-    '''
+     
 
 class platform_game():
     
@@ -100,10 +102,9 @@ class platform_game():
     def setup(self,lvl=1):
         self.lvl=1
         if lvl==1:
-            px=0
+            px=150
             py=int(5*ty)
-            self.background=pygame.image.load(os.path.join('images',"Background1.jpg"))
-            self.background = pygame.transform.scale(self.background,(worldx, worldy))
+        self.background=Background(0,0,"Background1.jpg")    
         self.player=Player(px, py)
         self.player_list = pygame.sprite.Group()
         self.player_list.add(self.player)
@@ -113,6 +114,7 @@ class platform_game():
     
     def playgame(self):
         main=True
+      
         while main == True:
           
             for event in pygame.event.get():
@@ -141,12 +143,34 @@ class platform_game():
                         self.player.control(0,steps)
                     if event.key == pygame.K_DOWN or event.key == ord('s'):
                         self.player.control(0,-steps)
-            self.world.blit(self.background,[0,0])
-            self.player_list.update()
+                        
+            if self.player.rect.x>=forwardx:
+                #scroll right
+                scrollx=self.player.rect.x-forwardx
+                self.player.rect.x=forwardx
+                self.background.x-=scrollx
+            if self.player.rect.x<=backwardx:
+                #scroll left
+                scrollx=self.player.rect.x-backwardx
+                self.player.rect.x=backwardx
+                self.background.x-=scrollx
+            if self.player.rect.y>=forwardy:
+                #scroll down
+                scrolly=self.player.rect.y-forwardy
+                self.player.rect.y=forwardy
+                self.background.y-=scrolly
+            if self.player.rect.y<=backwardy:
+                #scroll up
+                scrolly=self.player.rect.y-backwardy
+                self.player.rect.y=backwardy
+                self.background.y-=scrolly
+#            print(self.background.x,self.background.y)
+            self.world.blit(self.background.img,[self.background.x,self.background.y])
+            self.player_list.update(self.background)
             self.player_list.draw(self.world) # draw player
-            largeFont=pygame.font.SysFont("arial",25)
-            text=largeFont.render("coins: "+str(int(self.player.score)),1,WHITE)
-            self.world.blit(text,(10,10))
+#            largeFont=pygame.font.SysFont("arial",25)
+#            text=largeFont.render("Score: "+str(int(self.player.score)),1,WHITE)
+#            self.world.blit(text,(10,10))
             self.clock.tick(fps)
             pygame.display.flip()
             self.player.score-=1/fps
